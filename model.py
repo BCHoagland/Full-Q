@@ -3,8 +3,11 @@ import torch.nn as nn
 from torch.distributions import Normal
 
 n_obs = 2
-n_h = 40
+n_h = 20
 n_acts = 2
+# n_obs = 3
+# n_h = 40
+# n_acts = 1
 
 class Policy(nn.Module):
     def __init__(self, lr):
