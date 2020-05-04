@@ -5,9 +5,12 @@ from model import Network, Policy, ActionValue
 from storage import Storage
 from env import Env
 from map_env import MapEnv
-from visualize import eval_map, plot_reward, plot_states
+from visualize import plot_reward
 
 
+###################
+# HYPERPARAMETERS #
+###################
 batch_size = 128
 num_timesteps = 1e4
 vis_iter = 100
@@ -15,12 +18,25 @@ lr = 3e-4
 γ = 0.99
 
 
+###########
+# OBJECTS #
+###########
 env = MapEnv()
 # env = Env(gym.make('Pendulum-v0'))
 π = Policy(lr)
 Q1 = Network(ActionValue, lr)
 Q2 = Network(ActionValue, lr)
 buffer = Storage()
+
+
+class Behavior:
+    def __call__(self, *args):
+        return torch.rand(2) * 2 - 1 
+    
+    def prob(self, s, a):
+        return 1/2
+
+b = Behavior()
 
 
 ########################
@@ -47,7 +63,7 @@ for _ in range(int(num_timesteps)):
 
     # interact with environment
     with torch.no_grad():
-        a = torch.rand(2) * 2 - 1                               #! turn into actual object
+        a = b(s)
         s2, r, done = env.step(a)
 
         buffer.store((s, a, r, s2, done))
@@ -77,7 +93,7 @@ for i in range(int(num_timesteps)):
     # improve policy
     new_a, log_p = π.sample_with_grad(s)
     with torch.no_grad(): 
-        ratio = log_p.exp() / 2                                           #! add in behavioral policy
+        ratio = log_p.exp() / b.prob(s, a)
     q = Q1(s, new_a)
     objective = (ratio * (q.detach() * log_p + q)).mean()
     π.maximize(objective)
