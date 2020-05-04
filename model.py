@@ -114,32 +114,13 @@ class ActionValue(nn.Module):
             nn.ELU()
         )
 
-        self.Q1 = nn.Sequential(
+        self.main = nn.Sequential(
             nn.Linear(n_h, n_h),
             nn.ELU(),
             nn.Linear(n_h, 1)
-        )
-
-        self.Q2 = nn.Sequential(
-            nn.Linear(n_h, n_h),
-            nn.ELU(),
-            nn.Linear(n_h, 1)
-        )
-
-        self.V = nn.Sequential(
-            nn.Linear(n_h // 2, n_h // 2),
-            nn.ELU(),
-            nn.Linear(n_h // 2, 1)
         )
     
-    def q(self, s, a):
+    def forward(self, s, a):
         s = self.pre_state(s)
         a = self.pre_action(a)
-        return torch.min(self.Q1(torch.cat([s, a], -1)), self.Q2(torch.cat([s, a], -1)))
-    
-    def v(self, s):
-        # return self.V(self.pre_state(s))
-        return 0
-    
-    def adv(self, s, a):
-        return self.q(s, a) - self.v(s)
+        return self.main(torch.cat([s, a], -1))

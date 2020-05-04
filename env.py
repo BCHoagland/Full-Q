@@ -34,7 +34,7 @@ class Env:
         with torch.no_grad():
             dist_from_mid = torch.norm(s - self.mid_goal, 2)
             dist_from_end = torch.norm(s - self.goal, 2)
-            return - (0.7 * dist_from_end) - (0.3 * dist_from_mid)               #! remove the '80' later to make using a baseline more important
+            return 70 - (0.7 * dist_from_end) - (0.3 * dist_from_mid)               #! remove the '80' later to make using a baseline more important
 
 
     '''

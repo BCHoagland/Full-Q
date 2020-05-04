@@ -8,14 +8,14 @@ from visualize import eval_map, plot_reward, plot_states
 
 batch_size = 128
 num_timesteps = 1e5
-lr = 1e-4
+lr = 3e-4
 γ = 0.99
 
 
 env = Env()
 π = Policy(lr)
-QV = Network(ActionValue, lr)
-# V = Network(Value, lr)
+Q1 = Network(ActionValue, lr)
+Q2 = Network(ActionValue, lr)
 buffer = Storage()
 
 
@@ -45,24 +45,26 @@ def update():
     s, a, r, s2, d = buffer.sample(batch_size)
     m = 1 - d
 
-    # improve Q-function and V-function
+    # improve Q-function
     with torch.no_grad():
         a2 = π(s2)
-        y = r + m * γ * QV.target_model.q(s2, a2)
-    q_loss = ((QV.q(s,a) - y) ** 2).mean()
-    v_loss = ((QV.v(s) - y) ** 2).mean()
-    QV.minimize(q_loss + v_loss)
+        y = r + m * γ * torch.min(Q1.target(s2, a2), Q2.target(s2, a2))
+    q1_loss = ((Q1(s,a) - y) ** 2).mean()
+    q2_loss = ((Q2(s,a) - y) ** 2).mean()
+    Q1.minimize(q1_loss)
+    Q2.minimize(q2_loss)
 
     # improve policy
     new_a, log_p = π.sample_with_grad(s)                                #! make sure log_prob is calculated correctly
     with torch.no_grad(): 
         ratio = log_p.exp() / 4                                           #! add in behavioral policy
-    adv = QV.adv(s, a)
-    objective = (ratio * (adv.detach() * log_p + adv)).mean()
+    q = Q1(s, new_a)
+    objective = (ratio * (q.detach() * log_p + q)).mean()
     π.maximize(objective)
 
     # update target Q function
-    QV.soft_update_target()
+    Q1.soft_update_target()
+    Q2.soft_update_target()
 
 
 
@@ -83,10 +85,8 @@ for _ in range(int(num_timesteps)):
         if done:
             plot_states(ep_s)
             eval_map(
-                # ['V(s)', 'Q(s, [0,0])'],
-                # [QV.v, lambda x: QV.q(x, torch.zeros(2))]
-                ['Q(s, [0,0])'],
-                [lambda x: QV.q(x, torch.zeros(2))]
+                ['Q1(s, [0,0])', 'Q2(s, [0,0])'],
+                [lambda x: Q1(x, torch.zeros(2)), lambda x: Q2(x, torch.zeros(2))]
             )
             eval_policy()
             del ep_s[:]
