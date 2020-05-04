@@ -1,6 +1,6 @@
 import torch
 
-from model import Network, Policy, ActionValue, Value
+from model import Network, Policy, ActionValue
 from storage import Storage
 from env import Env
 from visualize import eval_map, plot_reward, plot_states
@@ -8,14 +8,14 @@ from visualize import eval_map, plot_reward, plot_states
 
 batch_size = 128
 num_timesteps = 1e5
-lr = 3e-4
+lr = 1e-4
 γ = 0.99
 
 
 env = Env()
 π = Policy(lr)
-Q = Network(ActionValue, lr)
-V = Network(Value, lr)
+QV = Network(ActionValue, lr)
+# V = Network(Value, lr)
 buffer = Storage()
 
 
@@ -45,30 +45,24 @@ def update():
     s, a, r, s2, d = buffer.sample(batch_size)
     m = 1 - d
 
-    # improve Q-function
+    # improve Q-function and V-function
     with torch.no_grad():
         a2 = π(s2)
-        y = r + m * γ * Q.target(s2, a2)
-    q_loss = ((Q(s,a) - y) ** 2).mean()
-    Q.minimize(q_loss)
-
-    # improve V-function
-    with torch.no_grad():
-        y = r + m * γ * V.target(s2)
-    v_loss = ((V(s) - y) ** 2).mean()
-    V.minimize(v_loss)
+        y = r + m * γ * QV.target_model.q(s2, a2)
+    q_loss = ((QV.q(s,a) - y) ** 2).mean()
+    v_loss = ((QV.v(s) - y) ** 2).mean()
+    QV.minimize(q_loss + v_loss)
 
     # improve policy
     new_a, log_p = π.sample_with_grad(s)                                #! make sure log_prob is calculated correctly
     with torch.no_grad(): 
         ratio = log_p.exp() / 4                                           #! add in behavioral policy
-    adv = Q(s, new_a)
+    adv = QV.adv(s, a)
     objective = (ratio * (adv.detach() * log_p + adv)).mean()
     π.maximize(objective)
 
     # update target Q function
-    Q.soft_update_target()
-    V.soft_update_target()
+    QV.soft_update_target()
 
 
 
@@ -89,8 +83,10 @@ for _ in range(int(num_timesteps)):
         if done:
             plot_states(ep_s)
             eval_map(
-                ['V(s)', 'Q(s, [0,0])'],
-                [V, lambda x: Q(x, torch.zeros(2))]
+                # ['V(s)', 'Q(s, [0,0])'],
+                # [QV.v, lambda x: QV.q(x, torch.zeros(2))]
+                ['Q(s, [0,0])'],
+                [lambda x: QV.q(x, torch.zeros(2))]
             )
             eval_policy()
             del ep_s[:]
