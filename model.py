@@ -98,6 +98,22 @@ class Network:
         return getattr(self.model, k)
 
 
+class Value(nn.Module):
+    def __init__(self):
+        super().__init__()
+
+        self.main = nn.Sequential(
+            nn.Linear(n_obs, n_h),
+            nn.ELU(),
+            nn.Linear(n_h, n_h),
+            nn.ELU(),
+            nn.Linear(n_h, 1)
+        )
+    
+    def forward(self, s):
+        return self.main(s)
+
+
 class ActionValue(nn.Module):
     def __init__(self):
         super().__init__()
@@ -125,25 +141,8 @@ class ActionValue(nn.Module):
             nn.ELU(),
             nn.Linear(n_h, 1)
         )
-
-        self.V = nn.Sequential(
-            nn.Linear(n_h // 2, n_h),
-            nn.ELU(),
-            nn.Linear(n_h, 1)
-        )
     
     def forward(self, s, a):
-        return self.q(s, a)
-    
-    def q(self, s, a):
         s = self.pre_state(s)
         a = self.pre_action(a)
         return torch.min(self.Q1(torch.cat([s, a], -1)), self.Q2(torch.cat([s, a], -1)))
-    
-    def value(self, s):
-        return self.V(self.pre_state(s))
-    
-    def adv(self, s, a):
-        s = self.pre_state(s)
-        a = self.pre_action(a)
-        return torch.min(self.Q1(torch.cat([s, a], -1)), self.Q2(torch.cat([s, a], -1))) - self.V(s)
